@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Antakshari</title>
+  <style>
+    /* Overall Page Styling */
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #6C63FF, #F8A2DB);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh; /* Full height of the viewport */
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 5px #333;
+    }
+
+    #name-container, #game-container {
+      padding: 30px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 15px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      width: 90%;
+      max-width: 600px;
+      text-align: center;
+    }
+
+    input, button {
+      padding: 12px 20px;
+      margin: 10px 0;
+      border-radius: 30px;
+      border: none;
+      outline: none;
+      font-size: 1rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    input {
+      width: 80%;
+      background: white;
+      color: #333;
+    }
+
+    button {
+      background: linear-gradient(90deg, #4B6EF8, #A77DF8);
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: linear-gradient(90deg, #333, #6C63FF);
+    }
+
+    p {
+      font-size: 1.1rem;
+      margin: 5px 0;
+    }
+
+    #leaderboard {
+      margin-top: 20px;
+      display: none;
+      background: white;
+      color: #333;
+      text-align: center;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 600px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background: #6C63FF;
+      color: white;
+    }
+
+    td {
+      background: #F2F2F2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Word Antakshari</h1>
+  <div id="name-container">
+    <input type="text" id="player-name" placeholder="Enter your name">
+    <button id="start-game">Start Game</button>
+  </div>
+  <div id="game-container" style="display: none;">
+    <p>Current Word: <span id="current-word">Loading...</span></p>
+    <p>Ending Letter: <span id="ending-letter">-</span></p>
+    <input type="text" id="input-word" placeholder="Enter your word">
+    <button id="submit-word">Submit</button>
+    <p>Status: <span id="game-status">-</span></p>
+    <p id="message"></p>
+    <button id="view-leaderboard">View Leaderboard</button>
+    <table id="leaderboard">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Score</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  
+  <script>
+    let currentWord = "";
+    let playerName = "";
+
+    // Start Game
+    document.getElementById("start-game").addEventListener("click", async () => {
+      playerName = document.getElementById("player-name").value;
+      if (!playerName) {
+        alert("Please enter your name to start the game.");
+        return;
+      }
+
+      try {
+        const response = await fetch("http://localhost:3000/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerName }),
+        });
+        const data = await response.json();
+        currentWord = data.word;
+
+        document.getElementById("current-word").textContent = currentWord;
+        document.getElementById("ending-letter").textContent = currentWord[currentWord.length - 1];
+        document.getElementById("game-status").textContent = data.status;
+        document.getElementById("name-container").style.display = "none";
+        document.getElementById("game-container").style.display = "block";
+      } catch (error) {
+        console.error("Error starting the game:", error);
+        document.getElementById("message").textContent = "Error starting the game.";
+      }
+    });
+
+    // Submit Word
+    document.getElementById("submit-word").addEventListener("click", async () => {
+      const inputWord = document.getElementById("input-word").value;
+
+      try {
+        const response = await fetch("http://localhost:3000/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ inputWord, currentWord, playerName }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          currentWord = data.nextWord;
+          document.getElementById("current-word").textContent = currentWord;
+          document.getElementById("ending-letter").textContent = currentWord[currentWord.length - 1];
+          document.getElementById("game-status").textContent = data.status;
+          document.getElementById("message").textContent = "Correct! Keep going!";
+        } else {
+          document.getElementById("message").textContent = data.message;
+          document.getElementById("game-status").textContent = data.status;
+        }
+      } catch (error) {
+        console.error("Error validating word:", error);
+        document.getElementById("message").textContent = "Error validating the word.";
+      }
+
+      document.getElementById("input-word").value = "";
+    });
+
+    // Fetch Leaderboard
+    document.getElementById("view-leaderboard").addEventListener("click", async () => {
+      try {
+        const response = await fetch("http://localhost:3000/leaderboard");
+        const players = await response.json();
+
+        const leaderboardTable = document.getElementById("leaderboard");
+        const tbody = leaderboardTable.querySelector("tbody");
+        tbody.innerHTML = "";
+
+        players.forEach((player) => {
+          const row = `<tr><td>${player.name}</td><td>${player.score}</td></tr>`;
+          tbody.innerHTML += row;
+        });
+
+        leaderboardTable.style.display = "table";
+      } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+        document.getElementById("message").textContent = "Error loading leaderboard.";
+      }
+    });
+  </script>
+</body>
+</html>
